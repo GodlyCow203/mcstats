@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Minecraft Stats</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      background: #121212;
+      color: #fff;
+    }
+    .stats-container {
+      background: rgba(0, 0, 0, 0.8);
+      border: 2px solid #00bfff;
+      border-radius: 12px;
+      padding: 20px;
+      width: 300px;
+      text-align: center;
+      font-size: 18px;
+      box-shadow: 0 0 10px #00bfff66;
+    }
+    .title {
+      font-size: 22px;
+      margin-bottom: 10px;
+      font-weight: bold;
+      color: #00c8ff;
+    }
+    .stat {
+      margin: 10px 0;
+    }
+    .label {
+      color: #aaa;
+    }
+    .value {
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+
+<div class="stats-container">
+  <div class="title">🟢 Minecraft Stats</div>
+  <div class="stat"><span class="label">Online Now:</span> <span id="online" class="value">--</span></div>
+  <div class="stat"><span class="label">24h Peak:</span> <span id="peak24h" class="value">--</span></div>
+  <div class="stat"><span class="label">All-Time Peak:</span> <span id="alltime" class="value">--</span></div>
+  <div class="stat"><span class="label">Daily Avg:</span> <span id="average" class="value">--</span></div>
+</div>
+
+<script>
+  const API_URL = 'https://api.mcstatus.io/v2/status/java/185.246.211.231:17708';
+
+  let peak24h = 0;
+  let alltimePeak = 0;
+  let hourlyTotals = [];
+  let currentHourSamples = [];
+  let averageToday = 0;
+
+  function scheduleDailyReset() {
+    const now = new Date();
+    const millisUntilMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime() - now.getTime();
+    setTimeout(() => {
+      hourlyTotals = [];
+      averageToday = 0;
+      document.getElementById('average').textContent = "--";
+      scheduleDailyReset();
+    }, millisUntilMidnight);
+  }
+
+  scheduleDailyReset();
+
+  async function fetchStats() {
+    try {
+      const res = await fetch(API_URL);
+      const data = await res.json();
+      const online = data.players.online || 0;
+
+      document.getElementById('online').textContent = online;
+
+      if (online > peak24h) peak24h = online;
+      if (online > alltimePeak) alltimePeak = online;
+
+      document.getElementById('peak24h').textContent = peak24h;
+      document.getElementById('alltime').textContent = alltimePeak;
+
+      currentHourSamples.push(online);
+
+    } catch (e) {
+      console.error('Error:', e);
+    }
+  }
+
+  function updateAverage() {
+    if (currentHourSamples.length > 0) {
+      const sum = currentHourSamples.reduce((a, b) => a + b, 0);
+      const avgHour = sum / currentHourSamples.length;
+      hourlyTotals.push(avgHour);
+      currentHourSamples = [];
+
+      const daySum = hourlyTotals.reduce((a, b) => a + b, 0);
+      averageToday = Math.round(daySum / hourlyTotals.length);
+      document.getElementById('average').textContent = averageToday;
+    }
+  }
+
+  fetchStats();
+  setInterval(fetchStats, 10000); // Every 10 sec
+  setInterval(updateAverage, 60 * 60 * 1000); // Every hour
+</script>
+
+</body>
+</html>
