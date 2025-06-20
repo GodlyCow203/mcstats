@@ -5,17 +5,68 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Minecraft Online Players</title>
   <style>
-    body { font-family: Arial, sans-serif; padding: 20px; background: #f0f0f0; }
-    h1 { text-align: center; }
-    table { margin: 0 auto; border-collapse: collapse; width: 300px; background: white; }
-    th, td { border: 1px solid #333; padding: 8px; text-align: center; }
-    th { background-color: #4CAF50; color: white; }
-    #status { text-align: center; margin: 15px; font-style: italic; }
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(to right, #1e3c72, #2a5298);
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 30px;
+    }
+
+    h1 {
+      margin-bottom: 10px;
+      font-size: 2.2em;
+    }
+
+    #countdown {
+      margin-bottom: 20px;
+      font-size: 1em;
+      opacity: 0.8;
+    }
+
+    table {
+      border-collapse: collapse;
+      background-color: rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
+      width: 320px;
+    }
+
+    th, td {
+      padding: 12px;
+      text-align: center;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    th {
+      background-color: rgba(0, 0, 50, 0.3);
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    td {
+      font-size: 1.1em;
+    }
+
+    #status {
+      margin-top: 20px;
+      font-style: italic;
+    }
+
+    .heart {
+      color: #ff4d4d;
+      margin-left: 6px;
+    }
   </style>
 </head>
 <body>
   <h1>Online Players</h1>
-  <div id="status">Loading player list...</div>
+  <div id="countdown">Updating in 10s...</div>
   <table id="playersTable" style="display:none;">
     <thead>
       <tr><th>Player Name</th></tr>
@@ -23,47 +74,68 @@
     <tbody id="playersBody">
     </tbody>
   </table>
+  <div id="status">Loading player data...</div>
 
   <script>
-    // Put your Minecraft server IP here:
-    const serverIP = "raid-mc.xyz:17708";
+    const serverIP = "raid-mc.xyz"; // 👈 Replace this
+    const statusEl = document.getElementById('status');
+    const tableEl = document.getElementById('playersTable');
+    const tbody = document.getElementById('playersBody');
+    const countdownEl = document.getElementById('countdown');
+
+    let countdown = 10;
+    let intervalId;
+
+    function startCountdown() {
+      clearInterval(intervalId);
+      countdown = 10;
+      countdownEl.textContent = `Updating in ${countdown}s...`;
+      intervalId = setInterval(() => {
+        countdown--;
+        countdownEl.textContent = `Updating in ${countdown}s...`;
+        if (countdown <= 0) {
+          fetchPlayers();
+        }
+      }, 1000);
+    }
 
     async function fetchPlayers() {
-      const statusEl = document.getElementById('status');
-      const tableEl = document.getElementById('playersTable');
-      const tbody = document.getElementById('playersBody');
-
       try {
         const response = await fetch(`https://api.mcsrvstat.us/2/${serverIP}`);
         const data = await response.json();
 
-        if (data.online && data.players && data.players.list && data.players.list.length > 0) {
-          tbody.innerHTML = '';
-          data.players.list.forEach(player => {
-            const row = document.createElement('tr');
-            const cell = document.createElement('td');
-            cell.textContent = player;
-            row.appendChild(cell);
-            tbody.appendChild(row);
-          });
-          statusEl.style.display = 'none';
-          tableEl.style.display = 'table';
-        } else if (data.online) {
-          statusEl.textContent = 'No players online.';
-          tableEl.style.display = 'none';
+        if (data.online && data.players) {
+          const players = data.players.list || [];
+          tbody.innerHTML = "";
+
+          if (players.length > 0) {
+            players.forEach(player => {
+              const row = document.createElement('tr');
+              const cell = document.createElement('td');
+              cell.innerHTML = `${player} <span class="heart">♥♥♥</span>`; // Placeholder hearts
+              row.appendChild(cell);
+              tbody.appendChild(row);
+            });
+            tableEl.style.display = "table";
+            statusEl.textContent = `Online: ${data.players.online} / ${data.players.max}`;
+          } else {
+            tableEl.style.display = "none";
+            statusEl.textContent = "No players online.";
+          }
         } else {
-          statusEl.textContent = 'Server is offline or unreachable.';
-          tableEl.style.display = 'none';
+          tableEl.style.display = "none";
+          statusEl.textContent = "Server is offline or unreachable.";
         }
       } catch (error) {
-        statusEl.textContent = 'Error fetching player data.';
-        tableEl.style.display = 'none';
+        statusEl.textContent = "Error fetching player data.";
+        tableEl.style.display = "none";
         console.error(error);
       }
+      startCountdown();
     }
 
-    fetchPlayers();
-    setInterval(fetchPlayers, 60000);
+    fetchPlayers(); // Initial fetch
   </script>
 </body>
 </html>
+
