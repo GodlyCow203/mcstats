@@ -1,49 +1,79 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Minecraft Stats</title>
+  <title>Minecraft Server Stats</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
     body {
-      background: #121212;
+      margin: 0;
+      background: linear-gradient(to right, #0f2027, #203a43, #2c5364);
+      font-family: 'Segoe UI', sans-serif;
       color: #fff;
-      font-family: sans-serif;
-      text-align: center;
-      padding-top: 40px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 30px;
+      overflow-x: hidden;
     }
+
     .stats {
-      border: 2px solid #00bfff;
-      border-radius: 10px;
-      padding: 20px;
-      width: 300px;
-      margin: auto;
-      background: rgba(0, 0, 0, 0.7);
-      box-shadow: 0 0 10px #00bfff99;
+      backdrop-filter: blur(12px);
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(0, 191, 255, 0.3);
+      box-shadow: 0 0 30px rgba(0, 191, 255, 0.2);
+      border-radius: 20px;
+      padding: 25px;
+      width: 90%;
+      max-width: 420px;
+      text-align: center;
+      margin-bottom: 30px;
+      animation: fadeIn 1s ease-out;
     }
+
     h2 {
+      font-size: 1.8em;
       color: #00e5ff;
+      margin-bottom: 20px;
     }
+
     .stat {
       margin: 10px 0;
-      font-size: 18px;
+      font-size: 1.2em;
+      letter-spacing: 0.5px;
+    }
+
+    canvas {
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 15px;
+      padding: 10px;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to   { opacity: 1; transform: translateY(0); }
     }
   </style>
 </head>
 <body>
 
 <div class="stats">
-  <h2>🟢 Minecraft Stats</h2>
+  <h2>🟢 Minecraft Server Stats</h2>
   <div class="stat">Online: <span id="online">--</span></div>
   <div class="stat">24h Peak: <span id="peak24h">--</span></div>
   <div class="stat">All-Time Peak: <span id="alltime">--</span></div>
 </div>
 
-<!-- Firebase SDKs -->
+<canvas id="playerChart" width="400" height="200"></canvas>
+
+<!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 <script>
-  // Your Firebase config - update with your real values
   const firebaseConfig = {
     apiKey: "AIzaSyBQCpQ0Hpze2o1iqPHzDl-yfYWQAeohSGQ",
     authDomain: "mc-server-stats-c9e35.firebaseapp.com",
@@ -59,6 +89,43 @@
 
   const API_URL = 'https://api.mcstatus.io/v2/status/java/185.246.211.231:17708';
 
+  const chartLabels = [];
+  const chartData = [];
+
+  const ctx = document.getElementById('playerChart').getContext('2d');
+  const chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: chartLabels,
+      datasets: [{
+        label: 'Online Players',
+        data: chartData,
+        fill: true,
+        borderColor: '#00bfff',
+        backgroundColor: 'rgba(0, 191, 255, 0.1)',
+        tension: 0.3,
+        pointRadius: 3,
+        pointBackgroundColor: '#00e5ff',
+      }]
+    },
+    options: {
+      scales: {
+        x: {
+          ticks: { color: '#ccc' }
+        },
+        y: {
+          beginAtZero: true,
+          ticks: { color: '#ccc' }
+        }
+      },
+      plugins: {
+        legend: {
+          labels: { color: '#eee' }
+        }
+      }
+    }
+  });
+
   async function fetchStats() {
     try {
       const res = await fetch(API_URL);
@@ -67,13 +134,12 @@
 
       document.getElementById('online').textContent = online;
 
-      // Read existing stats from Firebase
       const snapshot = await db.ref('/stats').once('value');
       let stats = snapshot.val() || { peak24h: 0, alltime: 0, timestamp: 0 };
 
       const now = Date.now();
 
-      // Reset 24h peak if more than 24h passed
+      // 24h peak logic
       if (now - stats.timestamp > 24 * 60 * 60 * 1000) {
         stats.peak24h = online;
         stats.timestamp = now;
@@ -81,27 +147,35 @@
         stats.peak24h = online;
       }
 
-      // Update all-time peak
+      // All-time peak
       if (online > stats.alltime) {
         stats.alltime = online;
       }
 
-      // Write updated stats back to Firebase
       await db.ref('/stats').set(stats);
 
-      // Update the display
       document.getElementById('peak24h').textContent = stats.peak24h;
       document.getElementById('alltime').textContent = stats.alltime;
 
+      // Update chart
+      const time = new Date().toLocaleTimeString();
+      chartLabels.push(time);
+      chartData.push(online);
+      if (chartLabels.length > 30) {
+        chartLabels.shift();
+        chartData.shift();
+      }
+      chart.update();
+
     } catch (e) {
       console.error('Error fetching stats:', e);
-      // Optionally show an error on the page
     }
   }
 
   fetchStats();
-  setInterval(fetchStats, 10000); // Update every 10 seconds
+  setInterval(fetchStats, 10000); // Every 10s
 </script>
 
 </body>
 </html>
+
