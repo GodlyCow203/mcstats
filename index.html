@@ -14,7 +14,6 @@
       flex-direction: column;
       align-items: center;
       padding: 30px;
-      overflow-x: hidden;
     }
 
     .stats {
@@ -40,7 +39,6 @@
     .stat {
       margin: 10px 0;
       font-size: 1.2em;
-      letter-spacing: 0.5px;
     }
 
     canvas {
@@ -131,15 +129,14 @@
       const res = await fetch(API_URL);
       const data = await res.json();
       const online = data.players.online || 0;
+      const now = Date.now();
 
       document.getElementById('online').textContent = online;
 
+      // Peak updates
       const snapshot = await db.ref('/stats').once('value');
       let stats = snapshot.val() || { peak24h: 0, alltime: 0, timestamp: 0 };
 
-      const now = Date.now();
-
-      // 24h peak logic
       if (now - stats.timestamp > 24 * 60 * 60 * 1000) {
         stats.peak24h = online;
         stats.timestamp = now;
@@ -147,7 +144,6 @@
         stats.peak24h = online;
       }
 
-      // All-time peak
       if (online > stats.alltime) {
         stats.alltime = online;
       }
@@ -157,21 +153,55 @@
       document.getElementById('peak24h').textContent = stats.peak24h;
       document.getElementById('alltime').textContent = stats.alltime;
 
-      // Update chart
-      const time = new Date().toLocaleTimeString();
-      chartLabels.push(time);
-      chartData.push(online);
-      if (chartLabels.length > 30) {
-        chartLabels.shift();
-        chartData.shift();
-      }
-      chart.update();
+      // Save time-series data
+      const entry = {
+        timestamp: now,
+        online: online
+      };
+      await db.ref(`/history/${now}`).set(entry);
+
+      cleanupOldEntries(); // Optional cleanup of >5min old data
+
+      updateChart(); // Refresh chart with latest history
 
     } catch (e) {
       console.error('Error fetching stats:', e);
     }
   }
 
+  async function updateChart() {
+    const now = Date.now();
+    const fiveMinAgo = now - 5 * 60 * 1000;
+
+    const snapshot = await db.ref('/history').orderByKey().startAt(fiveMinAgo.toString()).once('value');
+    const values = snapshot.val() || {};
+
+    chartLabels.length = 0;
+    chartData.length = 0;
+
+    Object.values(values).forEach(entry => {
+      const time = new Date(entry.timestamp).toLocaleTimeString();
+      chartLabels.push(time);
+      chartData.push(entry.online);
+    });
+
+    chart.update();
+  }
+
+  // Remove entries older than 10 minutes to save space
+  async function cleanupOldEntries() {
+    const cutoff = Date.now() - 10 * 60 * 1000;
+    const snapshot = await db.ref('/history').orderByKey().endAt(cutoff.toString()).once('value');
+    const oldEntries = snapshot.val() || {};
+
+    const updates = {};
+    for (const key in oldEntries) {
+      updates[key] = null;
+    }
+    await db.ref('/history').update(updates);
+  }
+
+  updateChart();
   fetchStats();
   setInterval(fetchStats, 10000); // Every 10s
 </script>
